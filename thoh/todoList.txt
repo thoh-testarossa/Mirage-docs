@@ -1,0 +1,5 @@
+To download paper: DIDO: Dynamic Pipelines for In-Memory Key-Value Stores on Coupled CPU-GPU Architectures
+To read paper: The Yin and Yang of Processing Data Warehousing Queries on GPU Devices
+To read paper: Concurrent Analytical Query Processing with GPUs
+To read paper: Spark-GPU - An Accelerated In-Memory Data Processing Engine on Clusters
+To finish the survey about GPU-based DBMSs
