@@ -1,3 +1,4 @@
+To read some papers  about GPU-Aggregation
 To download paper: DIDO: Dynamic Pipelines for In-Memory Key-Value Stores on Coupled CPU-GPU Architectures
 To finish the survey about GPU-based DBMSs
 To write a histogram demo using OpenCL
