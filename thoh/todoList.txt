@@ -1,7 +1,7 @@
-To read paper: Relational Query Coprocessing on Graphics Processors
 To download paper: DIDO: Dynamic Pipelines for In-Memory Key-Value Stores on Coupled CPU-GPU Architectures
 To finish the survey about GPU-based DBMSs
 To write a histogram demo using OpenCL
+(Done/20170316)To read paper: Relational Query Coprocessing on Graphics Processors
 (Done/20170314)To read paper: Efficient Gather and Scatter Operations on Graphics Processors
 (Done/20170314)To find some papers about GPU-Aggregation
 (Done/20170310)To read paper: Spark-GPU - An Accelerated In-Memory Data Processing Engine on Clusters
