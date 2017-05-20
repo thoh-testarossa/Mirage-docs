@@ -1,0 +1,15 @@
+﻿\begin{abstract}
+中文真难写啊，写个p，不写了
+
+\keywords{中国科学技术大学\zhspace{} 学位论文\zhspace{} \LaTeX{}~通用模板\zhspace{} 学士\zhspace{}
+硕士\zhspace{} 博士\zhspace{} 示例文档\zhspace{} 模板说明文档}
+\end{abstract}
+
+\begin{enabstract}
+Nowadays many applications / systems, including databases, have been used parallel computing technique to optimize their performance because of the great achievements of the parallel computing field such as GPGPU libraries, emerging hardware such as FPGA, GPU and so on. There are many remarkable works which centered on query processing with parallel computing such as workload balancing, pipeline / concurrent query processing model, etc. These works are usually used to optimize some heavy database computation missions, in which OLAP-relative computations can be the major part. However, few of them focus on OLAP-relative computation itself. Obviously it's easier but more effective to parallelize the OLAP-relative computing part than to focus other parts' parallelization when we want to improve overall performance of OLAP operations.
+
+To address the problem, this paper provides a prototype of parallelization computation model to solve some basic OLAP operations such as bottom cuboid generation, From-cuboid-to-cuboid calculation (used to avoid heavy computation which have to face when generating cuboid directly from raw dataset). After that, being concentrated on features on parallel computing, some different system architectures and OLAP itself, we combine some existing optimization approaches into our prototype, and based on these features and optimizations we provide a better evaluation function and some better optimizations to adapt different hardware conditions and different computing missions. Experiments show that our prototype is 2-4x better than the one which didn't use parallel techniques, and our optimization approaches make some OLAP computations 15-30% faster than the one which also uses parallel computation techniques to improve the performance but don't use these optimizations approaches.
+
+
+\enkeywords{University of Science and Technology of China (USTC), Thesis, Universal \LaTeX{} Template, Bachelor, Master, PhD}
+\end{enabstract}
