@@ -54,7 +54,7 @@ LaTeX version 1999/12/01 or later.
 %<class>\NeedsTeXFormat{LaTeX2e}[1999/12/01]
 %<class>\ProvidesClass{ustcthesis}
 %<*class>
-    [2017/04/17 v2.2 USTC thesis template]
+    [2017/05/09 v2.2.4 USTC thesis template]
 %</class>
 %
 %<*driver>
@@ -340,10 +340,10 @@ LaTeX version 1999/12/01 or later.
 % \begin{tabular}{p{.15\textwidth}p{.7\textwidth}}
 %     \toprule
 %     \opt{print} & 用于打印纸质论文，默认 \\
-%     \opt{pdf} & 适于屏幕阅读，会开启 \opt{onside}、\opt{pagecenter} 选项，
+%     \opt{pdf} & 适于屏幕阅读，会开启 \opt{oneside}、\opt{pagecenter} 选项，
 %     并且保留超链接颜色 \\
 %     \midrule
-%     \opt{onside} & 单面打印，\opt{bachelor} 默认 \\
+%     \opt{oneside} & 单面打印，\opt{bachelor} 默认 \\
 %     \opt{twoside} & 双面打印，\opt{doctor}、\opt{master} 默认 \\
 %     \midrule
 %     \opt{openany} & 新的一章仅在下一页开始 \\
@@ -563,6 +563,8 @@ LaTeX version 1999/12/01 or later.
 % \end{latex}
 % 则使用 numerical 风格。
 %
+% 有一小撮同学坚持使用在文中的 numerical 风格，如“见文献[2]”，
+% 模板还提供了 ustcinline 风格。
 %
 %
 % \clearpage
@@ -862,6 +864,7 @@ LaTeX version 1999/12/01 or later.
     unicode=true,
     linktoc=all,
 }
+\urlstyle{rm}
 %    \end{macrocode}
 % 如果为 |pdf| 样式，设置 hyperlink 颜色
 %    \begin{macrocode}
@@ -936,6 +939,7 @@ LaTeX version 1999/12/01 or later.
 % \subsection{设置语言}
 % 这里设置了中英文的各种名字。
 % \changes{v2.1.5}{2017/04/15}{Add English version.}
+% \changes{v2.2.2}{2017/04/26}{Enhance autoref names.}
 %    \begin{macrocode}
 \ifustc@opt@english
   \newcommand\ustc@contentsname{\contentsname}
@@ -953,9 +957,24 @@ LaTeX version 1999/12/01 or later.
   \renewcommand\listtablename{表目录}
   \newcommand\ustc@notesname{\textbf{注}：}
   \newcommand\ustc@acknowledgementsname{致\hspace{\ccwd}谢}
-  \newcommand\ustc@pdf@acknowledgementsname{致\hspace{\ccwd}谢}
+  \newcommand\ustc@pdf@acknowledgementsname{致谢}
   \newcommand\ustc@publicationsname{在读期间发表的学术论文与取得的研究成果}
   \newcommand\ustc@notationname{符号说明}
+  \def\equationautorefname~#1\null{公式~(#1)\null}%
+  \def\footnoteautorefname{脚注}%
+  \def\itemautorefname~#1\null{第~#1~项\null}%
+  \def\figureautorefname{图}%
+  \def\tableautorefname{表}%
+  \def\partautorefname~#1\null{第~#1~部分\null}%
+  \def\appendixautorefname{附录}%
+  \def\chapterautorefname~#1\null{第~#1~章\null}%
+  \def\sectionautorefname~#1\null{第~#1~节\null}%
+  \def\subsectionautorefname~#1\null{第~#1~小节\null}%
+  \def\subsubsectionautorefname~#1\null{第~#1~小小节\null}%
+  \def\paragraphautorefname~#1\null{第~#1~段\null}%
+  \def\subparagraphautorefname~#1\null{第~#1~小段\null}%
+  \def\theoremautorefname{定理}%
+  \def\pageautorefname~#1\null{第~#1~页\null}%
 \fi
 %    \end{macrocode}
 %
@@ -1231,10 +1250,11 @@ LaTeX version 1999/12/01 or later.
 % \subsection{目录}
 % \begin{macro}{\tableofcontents}
 % 为了在 PDF 书签中加入目录，重新定义 \cs{tableofcontents}
+% \changes{v2.2.3}{2017/05/04}{Fix toc pdf mark.}
 %    \begin{macrocode}
 \let\ustc@save@tableofcontents=\tableofcontents
 \renewcommand\tableofcontents{%
-    \clearpage%
+    \cleardoublepage%
     \ifustc@opt@bachelor
         \pagenumbering{arabic}%
     \fi
@@ -1242,26 +1262,48 @@ LaTeX version 1999/12/01 or later.
     \ustc@save@tableofcontents}
 %    \end{macrocode}
 % \end{macro}
-% 下面用 \pkg{titletoc} 宏包设置每级目录的格式
-% \changes{v2.2}{2017/04/17}{Fix toc spacing bug.}
+% 下面用 \pkg{titletoc} 宏包设置每级目录的格式。
+% 由于 \pkg{ctex} 新引入了 \opt{tocline}，导致chatper 的前标题空白多了0.3em。
+% \changes{v2.2}{2017/04/16}{Fix toc font size using \cmd{setfontsize}.}
+% \changes{v2.2.2}{2017/04/25}{Fix bachelor toc font size.}
+% \changes{v2.2.2}{2017/05/02}{Fix toc spacing.}
+% \changes{v2.2.3}{2017/05/04}{Fix bachelor toc punct and spacing.}
 %    \begin{macrocode}
 \RequirePackage{titletoc}
 \newcommand\ustc@leaders{\titlerule*[0.5pc]{$\cdot$}}
-\titlecontents{chapter}
-    [0bp]
-    {\addvspace{6bp}\setfontsize{14bp}}
-    {\thecontentslabel\hspace*{0.5em}}
-    {}{\ustc@leaders\setfontsize{12bp}\contentspage}
-\titlecontents{section}
-    [\ccwd]
-    {\addvspace{6bp}\setfontsize{12bp}}
-    {\thecontentslabel\hspace*{0.5em}}
-    {}{\ustc@leaders\setfontsize{12bp}\contentspage}
-\titlecontents{subsection}
-    [2\ccwd]
-    {\addvspace{6bp}\setfontsize{10.5bp}}
-    {\thecontentslabel\hspace*{0.5em}}
-    {}{\ustc@leaders\setfontsize{12bp}\contentspage}
+\ifustc@opt@bachelor
+    \titlecontents{chapter}
+        [0bp]
+        {\setfontsize{12bp}[20bp]}
+        {\thecontentslabel\hskip\ccwd}
+        {}{\ustc@leaders\contentspage}
+    \titlecontents{section}
+        [\ccwd]
+        {\setfontsize{12bp}[20bp]}
+        {\thecontentslabel\hskip\ccwd}
+        {}{\ustc@leaders\contentspage}
+    \titlecontents{subsection}
+        [2\ccwd]
+        {\setfontsize{12bp}[20bp]}
+        {\thecontentslabel、}
+        {}{\ustc@leaders\contentspage}
+\else
+    \titlecontents{chapter}
+        [0bp]
+        {\addvspace{6bp}\setfontsize{14bp}[20bp]}
+        {\thecontentslabel\hspace*{0.5em}}
+        {}{\ustc@leaders\setfontsize{12bp}[20bp]\contentspage}
+    \titlecontents{section}
+        [\ccwd]
+        {\setfontsize{12bp}[20bp]}
+        {\thecontentslabel\hspace*{0.5em}}
+        {}{\ustc@leaders\setfontsize{12bp}[20bp]\contentspage}
+    \titlecontents{subsection}
+        [2\ccwd]
+        {\setfontsize{10.5bp}[20bp]}
+        {\thecontentslabel\hspace*{0.5em}}
+        {}{\ustc@leaders\setfontsize{12bp}[20bp]\contentspage}
+\fi
 %    \end{macrocode}
 % 同时设置图、表的目录格式
 %    \begin{macrocode}
@@ -1313,8 +1355,9 @@ LaTeX version 1999/12/01 or later.
 % \pkg{ctex} 2.2 以及以上版本。
 %
 % 另外摘要、参考文献等章节在底层也是用 \cs{chapter} 实现的。
-% 这一部分以后可能用\pkg{titlesec}重新实现。
+% 这一部分以后可能重新实现 \cs{chapter}。
 %    \begin{macrocode}
+\setcounter{secnumdepth}{3}
 \ctexset{
     chapter = {
         format = \centering\sffamily\bfseries\setfontsize{16bp},
@@ -1327,30 +1370,63 @@ LaTeX version 1999/12/01 or later.
         % fixskip = true, % will be used in future version
     },
     section = {
-        format = \raggedright\sffamily\setfontsize{14bp},
+        format = \sffamily\setfontsize{14bp},
         beforeskip = 24bp,
         afterskip = 6bp,
     },
     subsection = {
-        format = \raggedright\sffamily\setfontsize{13bp},
+        format = \sffamily\setfontsize{13bp},
         beforeskip = 12bp,
         afterskip = 6bp,
     },
     subsubsection = {
-        format = \raggedright\sffamily\setfontsize{12bp},
+        format = \sffamily\setfontsize{12bp},
         beforeskip = 12bp,
         afterskip = 6bp,
     }
 }
+%    \end{macrocode}
+%
+% 设置本科生的章节标题。
+%    \begin{macrocode}
 \ifustc@opt@bachelor
-    \ctexset{section/format += \centering\zihao{-3}}
-    \ctexset{subsection/format += \zihao{4}}
+    \setcounter{secnumdepth}{4}
+    \ctexset{
+        chapter={
+            format = \centering\sffamily\setfontsize{16bp},
+            number = \chinese{chapter},
+        },
+        section = {
+            format = \centering\sffamily\setfontsize{15bp},
+            name   = {第,节},
+            number = \chinese{section},
+        },
+        subsection = {
+            format    = \sffamily\setfontsize{14bp},
+            number    = \chinese{subsection},
+            aftername = {、},
+        },
+        subsubsection = {
+            format    = {\rmfamily\setfontsize{12bp}},
+            number    = \arabic{subsubsection},
+            aftername = {.\ },
+            indent    = \ccwd,
+        },
+        paragraph = {
+            format    = {\rmfamily\setfontsize{12bp}},
+            name      = {(,)},
+            number    = \arabic{paragraph},
+            aftername = {\ },
+            indent    = 2\ccwd,
+        },
+        subparagraph = {
+            format    = {},
+            name      = {},
+            indent    = 2\ccwd,
+        },
+    }
 \fi
 % \assignpagestyle{\chapter}{empty}
-%    \end{macrocode}
-% 正文章节编号到 3 级 section 标题
-%    \begin{macrocode}
-\setcounter{secnumdepth}{3}
 %    \end{macrocode}
 % 正文段落文字格式设置
 %    \begin{macrocode}
@@ -1365,9 +1441,13 @@ LaTeX version 1999/12/01 or later.
 %
 % \subsection{图、表}
 % 用 \pkg{caption} 宏包设置图、表的格式
+% 注意计算 belowskip 必须用 \pkg{calc} 宏包修正。
 % \changes{v2.2}{2017/04/17}{Fix distance below figure captions.}
+% \changes{v2.2.1}{2017/04/18}{Fix distance above figures.}
+% \changes{v2.2.2}{2017/04/25}{Fix caption spacing.}
 %    \begin{macrocode}
 \RequirePackage{caption}
+\RequirePackage{calc}
 \DeclareCaptionLabelSeparator{zhspace}{\hspace{\ccwd}}
 \captionsetup{
     format = hang,
@@ -1381,11 +1461,10 @@ LaTeX version 1999/12/01 or later.
         labelfont+={bf},
     }
 \fi
-\setlength{\intextsep}{0bp}
 \captionsetup[figure]{
     position = bottom,
     aboveskip = 6bp,
-    belowskip = 12bp,
+    belowskip = {12bp-\intextsep},
 }
 \captionsetup[table]{
     position = top,
@@ -1427,11 +1506,13 @@ LaTeX version 1999/12/01 or later.
 % 目前 \BibTeX{} 使用的 .bst 格式 位于 \url{https://github.com/zepinglee/gbt-7714-2015}
 % \changes{v2.1}{2016/04/16}{Support both author-year and numerical bib style.}
 % \changes{v2.1.4}{2017/02/26}{Adopt bibliography style updates and fix a few bugs.}
+% \changes{v2.2.2}{2017/04/26}{Fix url font.}
+% \changes{v2.2.2}{2017/05/02}{Add inline citatinon style.}
 %    \begin{macrocode}
 \usepackage[sort&compress]{natbib}
+\newcommand\bibstyle@ustcnumerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
+\newcommand\bibstyle@ustcinline{\bibpunct{[}{]}{,}{n}{,}{,}}
 \newcommand\bibstyle@ustcauthoryear{\bibpunct{(}{)}{;}{a}{,}{,}}
-\newcommand\bibstyle@ustcnumerical{\bibpunct{[}{]}{,}{s}{,}{,}}
-\renewcommand\bibfont{\setfontsize{10.5bp}[20bp]}
 \setlength{\bibsep}{0bp}
 \setlength{\bibhang}{1em}
 \ifustc@opt@bachelor
