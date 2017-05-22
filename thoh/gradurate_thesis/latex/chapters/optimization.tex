@@ -1,0 +1,211 @@
+\chapter{从原始数据聚合cuboid到目标数据聚合cuboid的聚合优化}
+\citestyle{ustcnumerical}
+\section{目标与评估标准}
+在本章的开始，我们首先明确该问题的定义与目标。
+
+cuboid具有$n$个维度，其中每个维度的取值数量由（$d_1$, $d_2$, …, $d_n$）决定。假定为了聚合，对聚合前cuboid中的一个特定的cell的扫描与处理时间时间是一个常数$t_{cs}$。
+
+给定一个聚合顺序为（$i_1$, $i_2$, …, $i_j$），则第一步聚合的维度为$i_1$，聚合所需要扫描的cell的数量为$\prod_{i}^{n} d_i$，第一步聚合完成后的cuboid的总cell数为$\prod_{i}^{n} d_i / (\prod_{l}^{1} d_{i_l})$，以此类推，就可以得到总的j步聚合需要在扫描上花费的总时间为：
+\begin{equation}
+T_{c\_agg\_to\_c} = t_{cs} \times \sum_{m = 0}^{j - 1} (\prod_{i = 1}^{n} d_i / (\prod_{l = 1}^{m} d_{i_l}))
+\end{equation}
+
+于是我们的总目标就是：尽可能减少平均到每个cuboid计算上的$T_{c\_agg\_to\_c}$，使得在相同的硬件条件下能得到更快的计算速度。
+
+\section{聚合路线的贪心选择算法}
+本小节主要介绍一个已有的路线选择算法。在并行计算的背景下，它仍然适用，并且依然能给出在这个步骤下的最优方案。
+
+\subsection{算法的描述}
+该算法思路非常简单：我们总选择当前剩下来需要被聚合的维度中维度值最大的那一维即可。下面将给出其最优性的简单证明。
+
+\subsection{算法的证明}
+现在来考察一个聚合过程中的某两步，这两步分别选择聚合第$i$维和第$j$维。
+
+考察这两步聚合发生前的聚合cuboid与之后的聚合cuboid：与这两步聚合的具体顺序无关，结果来看都为后者比前者多聚合了$i$，$j$两个维度。因此，无论这两步按照如何的顺序发生，对于这两步之前的扫描次数总和，与这两步之后的扫描次数总和都是无关系的。
+
+接下来假定$i$，$j$两步聚合后的聚合立方体还有cell的个数为$D$，以及$i$先被聚合。则我们可以计算得出这两步中被扫描的cell的总数为：$D \times d_i \times d_j + D \times d_j$ 
+类似的，当假定$j$先被聚合，得到的是：$D \times d_i \times d_j + D \times d_i$
+
+此时可以看出，先聚合$d_i$、$d_j$中比较大的那一个对应的维度时会得到更小的总扫描次数。
+
+因此，给定任意一个序列，除非其已经是严格按照如下的标准来完成聚合，否则总能找到一次调整，使得调整后的聚合序列拥有更少的总扫描次数。
+
+{\quad}序列对应的维度值是严格单调非增的。
+
+而满足最少总扫描次数的聚合序列，可以由一个简单的贪心算法得到（前述）。
+
+证毕。
+
+\section{从给定的预处理cuboid中的最优起始选择}
+事实上，对于一个系统而言，存在忙时就势必会存在闲时，意即存在这样一些时刻，系统计算资源得到空闲。而由上一小节的分析可知，从源cuboid到目标cuboid是需要计算的，这个计算量与聚合操作的次数，路径上的中间cuboid都有关。
+
+作为上一小节中提到的算法的前提条件，“源cuboid”与“目标cuboid”是明确的，即从源cuboid到目标cuboid的聚合次数是一定的，而上一小节中的算法在这个前提下给出了最小代价的聚合方案。然而在实际操作中，用户只需求目标cuboid，意即其并不关心这个目标cuboid是从哪个地方来的（可能是直接从源数据生成，也可能是由其他一些已经生成好的cuboid生成）。于是，一个直观的想法就是我们或许可以不需要每次都从最底层的cuboid来现场计算出目标cuboid，而是从某些预先计算好的cuboid来计算目标cuboid，从而减少聚合次数，进而减少总的计算代价。这些预处理的cuboid可以在系统空闲时间被计算出来，从而不占用任何的实际运行时间。
+
+\subsection{选择标准}
+如前所述，假定我们现在已经有了一个预处理过后的cuboid集合。可知这个集合中势必包含一个最底层的cuboid：
+
+\begin{definition}
+任意给定一个目标cuboid，一个预处理的cuboid能生成这个目标cuboid的充要条件是：预处理cuboid中不存在这样的已聚合维度，使得目标cuboid中该维度未聚合。
+\end{definition}
+
+沿用上一小节给出的时间计算式，我们可以简单地得出我们问题的定义：从满足上述定义的cuboid中寻找一个使得由该计算式能给出最小值的cuboid，此cuboid即为所求。
+
+\subsection{选择算法的实现}
+这个问题可以由一个并行算法实现，每个kernel简单地使用一个位于共享内存中的内存单元以存放最后的计算结果。下面给出算法运行的具体步骤：
+
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{预处理cuboid集合，目标cuboid}
+\KwResult{最优的cuboid}
+Generate computation kernel based on system dispatch scenario\;
+Each kernel read the dimensional information of one of the pre-processed cuboids\;
+\While{kernels to execute exists}{
+	Use this kernel to test if the target cuboid can be reached from this cuboid\;
+	\If{true}{
+		Calculate the total cost of this route\;
+		Copy the result back to the shared memory\;
+	}
+}
+Check all the result and choose the minimum one\;
+\caption{在已有的预处理cuboid中寻找最优的预处理cuboid}
+\label{algo:algorithm3}
+\end{algorithm}
+
+事实上，由于预处理的cuboid未必很多（每个cuboid本身是会占用不少存储空间的），而其中维度数据占的比例又非常小，因此这个算法即使全部交由CPU来执行也是可行的。
+
+\section{最优化预处理cuboid生成}
+如前所述，在考虑cuboid的生成问题时，没有必要每次都从最底层的cuboid来进行生成，而是可以从预先预处理好的cuboid中寻找一个较为合适的，在被选择的cuboid的基础上更快更好地生成所需的目标cuboid。这一小节从经典的cuboid预处理选择生成算法出发，在新的硬件模型上对此进行了一定的拓展。
+
+\subsection{古典方法（Stanford， 1996）}
+在\cite{HarinarayanSIGMOD1996}中，一种以硬盘I/O时间作为主要衡量因素的评估标准，以及由此而生的一种生成次最优解的贪心算法被提出。具体的算法描述如下：
+
+假定每个cuboid（下文称为$v$）在进行处理时拥有一个花费函数$C(v)$，同时假定在除了最底层的cuboid之外，预先处理好的cuboid的个数为$k$。集合$S$作为当前已选择的cuboid的集合。
+定义一个收益函数$B(v, S)$，具体定义如下：
+
+\begin{definition}
+对于每一个能从$v$聚合得来的$w$，定义$B_w$为
+
+{\quad}1. 令$u$是在$S$中的能聚合生成$w$的且拥有最小的花费函数值的cuboid
+
+{\quad}2. 如果$C(u) \textgreater C(v)$，则$B_w = C(u) - C(v)$, 否则$B_w = 0$
+
+$B(v, S)$ = $\sum B_w$
+\end{definition}
+由此我们可以看出，收益函数的定义实质是“选择当前cuboid比起选择由它而生成的所有cuboid相比能多得到的收益”。
+
+基于这个收益函数，有一个对于所需生成的cuboid进行选择的贪心算法如下：
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{Nothing}
+\KwResult{最优的预处理集合}
+Initial state: $S = \{bottom cuboid\}$, $i = 0$\;
+\While{$i \textless k$}{
+	Select the cuboid $v$ that isn't in the set $S$ and can make the $B(v, S)$ be the maximum.\;
+	$S = S \bigcup \{v\}$\;
+}
+Return set $S$\;
+\caption{寻找最优的预处理集合}
+\label{algo:algorithm4}
+\end{algorithm}
+
+\subsection{对花费函数的修正}
+上一小节中提到的贪心算法，可以看到其最终执行的效果与$C(v)$的选择息息相关。在前述论文发表的时代背景中，可以认为“从硬盘到内存中的对于预处理cuboid的存取”占用了绝大多数的时间，意即存储之间的I/O成为了整个系统的绝对瓶颈；另一方面，I/O时间在系统硬件配置恒定的情况下基本只与存取的数据的大小有关，具体到每个数据聚合cuboid上，就是和cuboid作为一张table所具有的行数（cell的数目）有关。因此，在原论文中，这个花费函数被简单的设定成为了该cuboid的行数。所有的计算都通过“I/O数据量最优”来间接地指向“时间最优”。
+
+然而，上述的假定并不周全。我们再来详细考察从一个事先预处理好的cuboid到目标cuboid的过程：
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{起始cuboid}
+\KwResult{目的cuboid}
+(*)Copy the corresponding cuboid(s) into main memory\;
+\While{The target cuboid doesn't exist}{
+	Copy the corresponding cuboid(s) to the parallel device when a computation mission exists\;
+	Parallel device calculates the result cuboid\;
+	Copy the result cuboid back to main memory\;
+}
+\caption{从起始cuboid到目的cuboid的计算过程}
+\label{algo:algorithm5}
+\end{algorithm}
+
+因此，对于一个完整的过程，我们能得到每一步的计算时间表达式为：（假定目标cuboid有$D$个cell，从预处理的cuboid到目标cuboid一共聚合了维度$q$个，它们的维度值分别为$(d_1, d_2, …, d_q)$，一个cell的大小为$s$）
+
+第1行：从硬盘到主存的拷贝：
+\begin{equation}
+T_{copy\_hd\_to\_m} = C_{copy\_hd\_to\_m} \times D \times \prod_{i = 1}^{q} d_i \times s
+\end{equation}
+
+循环节内部的3行代码将如下考虑：每一步执行的cuboid都比上一步少了一个维度，具体少的维度可以由前述的方法给出，这里将$q$次的时间总和写在一起：
+
+第3行：设备初始化与cuboid的拷入。总共的拷贝时间为：
+\begin{equation}
+T_{copy\_m\_to\_d} = C_{init\_time} + C_{copy\_m\_to\_d} \times \sum_{m = 0}^{q - 1} (D \times \prod_{i = 1}^{q} d_i \div (\prod_{l = 1}^{m} d_{i_l}))
+\end{equation}
+
+第4行：计算所有的cuboid。总共的计算时间是：
+\begin{equation}
+T_{cal} = t_{scan\_per\_cell} \div K \times \sum_{m = 0}^{q - 1} ((D \times \prod_{i = 1}^{q} d_i) \div (\prod_{l = 1}^{m} d_{i_l}))
+\end{equation}
+
+第5行：cuboid的拷出。总时间为：
+\begin{equation}
+T_{copy\_d\_to\_m} = C_{copy\_d\_to\_m} \times \sum_{m = 1}^{q} (D \times \prod_{i = 1}^{q} d_i \div (\prod_{l = 1}^{m} d_{i_l}))
+\end{equation}
+
+那么这个$C(v)$函数究竟应该如何构造呢？我们不妨这么考虑：假定现在有两个cuboid，分别为$a$与$b$，其中$a$可以生成$b$（意即$a$经由聚合能达到$b$）。我们现在暂且不知道$C(a)$与$C(b)$如何取值，但有一点可以明确的是，选择$C(b)$和选择$C(a)$，在以后生成所有可以由b生成的cuboid时，可以有差值：$C(a)$ – $C(b)$ = $\Delta read_time(a, b) + generate_time(a -> b)$。于是，顺着这个思路，定义最底层cuboid的$C(bottom)$为$0$，则有：
+
+\begin{definition}
+$C(bottom) - C(v) = - C(v) = C_{copy\_hd\_to\_m} \times sizeof(source cuboid file - target cuboid file) + C_{copy\_m\_to\_d} \times count_A \times s + C_{copy\_d\_to\_m} \times count_B \times s + t_{scan\_per\_cell} \div K \times count_A + C_{init\_time}$
+\end{definition}
+
+即C(v)是上述式子的相反数。
+
+在这个式子中，$count_A$与$count_B$分别代表在具体的计算中，相应的部分需要处理的cell的个数。
+
+我们可以发现，出现了一些新的常量，而这些常量与文中提到的聚合方法，以及系统的一些具体硬件参数是有关的：
+$C_{copy\_hd\_to\_m}$：指从硬盘向内存中拷贝单位大小的数据所需要的时间。
+$C_{init\_time}$：初始化指定的cuboid聚合函数所需要的时间。
+$C_{copy\_m\_to\_d}$：从内存向并行设备拷贝单位大小的数据所需要的时间。
+$t_{scan\_per\_cell}$：聚合方法中，单个kernel对于每一个聚合前的cell进行扫描以及聚合进聚合后的cuboid的平均时间。
+$C_{copy\_d\_to\_m}$：从并行设备向内存拷贝单位大小的数据所需要的时间。
+
+关于这一小节留下来的这些常量，它们如何取值很大程度上决定了我们该如何在前人论文的基础上修正我们对于cuboid的选择方式。它们的具体取值将会在第五章通过实验来推定，从而在此基础上再来回顾修正前后的花费函数对于我们最终生成预处理cuboid的决策的影响。
+
+最后，注意到上述算法的（*）。在当今的计算机系统中，内存的成本已经变得越来越低，以至于很多in-memory database有了很大的发展空间。作为一个必须长时间保证稳定运行的系统，数据库系统也有很大的机会通过收集用户的使用数据，从而调整自己缓存在内存之中的数据。这些预处理的cuboid也是其中之一。因此，在这个前提下，我们可以将之前归纳出的公式进行修改，从而得到在in-memory database system中的花费函数为：
+\begin{definition}
+$- C(v) = C_{copy\_m\_to\_d} \times count_A \times s + C_{copy\_d\_to\_m} \times count_B \times s + t_{scan\_per\_cell} \div K \times count_A + C_{init\_time}$
+\end{definition}
+
+
+\section{聚合的并行化实现}
+前述的章节中，我们阐明了如何选择聚合的各个因素，从而使得聚合的平均性能尽可能达到最优。本小节将讨论如何具体实现从源cuboid到目标cuboid的聚合。
+
+由上一小节，我们计算出了一个使得平均聚合代价最优的预处理集合；由上上小节，我们找到了一个能最优化对于给定目标cuboid的生成的预处理cuboid，并且在此同时由上上上小节得到了一条从选择出的预处理cuboid到目标cuboid的生成路线。因此，这一步要做的就是按照这个路线，逐个逐个地由预处理cuboid生成到目标cuboid。可以发现这个问题每个步骤其实是相似的：聚合当前cuboid的某个给定的维度。因此下文的讨论中仅讨论一步的聚合。
+
+进行如下的假定：对于当前cuboid，未聚合维度的维度值集合为$(d_1, d_2, …, d_j)$。假定我们需要聚合维度$i$，考察聚合后的cuboid，我们可以发现，所有满足如下条件的聚合前的cuboid的cell将会被聚合成聚合后cuboid的一个cell：
+
+$(ddk_1, ddk_2, …, ddk_{i-1}, d_i, ddk_{i+1}, …, ddk_j)$，其中$ddk_m$（$m$从1到$j$，$m$代表维度）是明确的值，$d_i$是一个变量。它们将会被聚合到聚合后的cuboid中的
+
+$(ddk_1, ddk_2, …, ddk_{i-1}, ddk_{i+1}, …, ddk_j)$
+
+这个cell中。因此，我们可以令每个kernel生成一个聚合后的cell。注意到所有的kernel合起来将完成一次对于聚合前cuboid的扫描，因此计算代价上是最优的，无需像第3章中一般特地使用多个cuboid的存储空间，而仅需要一个共享的cuboid空间即可。同时这个定义可以直接避免读写冲突，因此这是一个可行的方法。
+
+下面给出该算法的具体过程：
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{原始cuboid}
+\KwResult{一步聚合cuboid}
+Generate computation kernel based on system dispatch scenario\;
+\While{kernels to execute exists}{
+	Use this kernel to scan the corresponding cells in raw cuboid\;
+	Aggregate them into the next cuboid\;
+}
+\caption{并行化的一步cuboid聚合}
+\label{algo:algorithm6}
+\end{algorithm}
+
+由此可以得到时间开销与空间开销为：
+
+时间：$d_1 \times d_2 \times$ … $\times d_j \times t_{scan\_per\_cell} \div K$
+
+空间：$d_1 \times d_2 \times$ … $\times d_j \times s + d_1 \times d_2 \times … \times d_{i-1} \times d_{i+1} \times$ … $\times d_j \times s$
+
+注意到在该聚合方法中，对于每个聚合前cuboid的每个cell，我们简单地取出内部的数据，并将其累计进入对应的聚合后的cell，那么基于前文所假定的cell结构相似性，我们可以认为$t_{scan\_per\_cell}$在任何阶段都是一定的。

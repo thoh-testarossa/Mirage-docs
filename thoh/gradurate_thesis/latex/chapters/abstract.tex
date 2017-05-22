@@ -1,24 +1,16 @@
 ﻿\begin{abstract}
-本文是中国科学技术大学本硕博毕业论文 \LaTeX{} 模板示例文件。本模板由
-zepinglee和seisman创建，其前身是ywg@USTC创建的本硕博论文通用模板。
-本模板遵循中国科学技术大学的论文写作规范，适用于撰写学士、硕士和博士学位论文。
+时至今日，得益于并行计算领域取得的包括通用并行计算平台编程（例如GPGPU），新兴的的并行硬件（例如FPGA）的开发等巨大成就，许多的应用程序抑或是系统，都采用了并行计算的方式来优化他们的性能，这其中也包括了数据库系统。前人在相关领域的工作中，有许多令人瞩目的成果都集中在基于并行计算的查询优化上，例如负载均衡，流水线／并发查询处理模型，等等。这些工作的成果通常都会被应用在一些计算任务很重的数据库处理任务上，而这些任务中OLAP（Online Analytical Computing， 在线分析处理）相关的计算在其中占了很大的比重。但是，并没有许多的相关工作专注于用并行计算的方式优化OLAP相关的计算任务本身。而显而易见的是，对于这些计算的并行优化相较于对其它部分的并行优化将会更为简单，但更为有效地改变整体的OLAP计算和操作的整体性能。
 
-本示例文档中会演示如何使用 \LaTeX{} 的一些基本命令以及本模板提供的一些特殊功能，
-模板的选项及详细用法请参考模板说明文档 ustcthesis.pdf。
+为了解决上述问题，本文提出了一套并行计算模型的原始方案来解决一些基本的OLAP操作，例如底层cuboid的生成，从cuboid到cuboid的计算（用以避免每次从原始数据集计算cuboid的繁重计算）。在此基础之上，我们将重心放在现代并行计算平台的特点，一些新兴的数据库系统模型和OLAP本身的某些算法特性之上，整合了已有的一些计算OLAP的优化方案进入我们的模型之中，并且提出了一套更优的评估函数和一些更好的优化方案以用来适应不同的并行计算硬件组合。实验结果表明我们的并行计算方案比起非并行计算方案普遍有了2-4倍性能的提升，并且在均采用并行计算方案的前提下，我们的优化方案使得在某些OLAP的计算中获得了15-30\%的性能提升
 
-\keywords{中国科学技术大学\zhspace{} 学位论文\zhspace{} \LaTeX{}~通用模板\zhspace{} 学士\zhspace{}
-硕士\zhspace{} 博士\zhspace{} 示例文档\zhspace{} 模板说明文档}
+\keywords{中国科学技术大学\zhspace{} 学位论文\zhspace{} 学士\zhspace{} OpenCL\zhspace{} 在线分析处理\zhspace{} 并行计算\zhspace{}
+}
 \end{abstract}
 
 \begin{enabstract}
-This is a sample document of USTC thesis \LaTeX{} template for bachelor, master
-and doctor. The template is created by zepinglee and seisman, which orignate from
-the template created by ywg@USTC\@. The template meets the equirements of USTC
-theiss writing standards.
+Nowadays many applications / systems, including databases, have been used parallel computing technique to optimize their performance because of the great achievements of the parallel computing field such as GPGPU libraries, emerging hardware such as FPGA, GPU and so on. There are many remarkable works which centered on query processing with parallel computing such as workload balancing, pipeline / concurrent query processing model, etc. These works are usually used to optimize some heavy database computation missions, in which OLAP-relative computations can be the major part. However, few of them focus on OLAP-relative computation itself. Obviously it's easier but more effective to parallelize the OLAP-relative computing part than to focus other parts' parallelization when we want to improve overall performance of OLAP operations.
 
-This document will show the usage of basic commands provided by \LaTeX{} and some
-features provided by the template. For more information, please refer to the
-template document ustcthesis.pdf.
+To address the problem, this paper provides a prototype of parallelization computation model to solve some basic OLAP operations such as bottom cuboid generation, From-cuboid-to-cuboid calculation (used to avoid heavy computation which have to face when generating cuboid directly from raw dataset). After that, being concentrated on features on parallel computing, some different system architectures and OLAP itself, we combine some existing optimization approaches into our prototype, and based on these features and optimizations we provide a better evaluation function and some better optimizations to adapt different hardware conditions and different computing missions. Experiments show that our prototype is 2-4x better than the one which didn't use parallel techniques, and our optimization approaches make some OLAP computations 15-30\% faster than the one which also uses parallel computation techniques to improve the performance but don't use these optimizations approaches.
 
-\enkeywords{University of Science and Technology of China (USTC), Thesis, Universal \LaTeX{} Template, Bachelor, Master, PhD}
+\enkeywords{University of Science and Technology of China (USTC), Thesis, Bachelor, OpenCL, OLAP, Parallel computing}
 \end{enabstract}

@@ -1,26 +1,26 @@
 %!TEX encoding = UTF-8 Unicode
 %!TEX program = xelatex
 
-\documentclass[doctor]{ustcthesis}
+\documentclass[bachelor]{ustcthesis}
 % bachelor|master|doctor
 \usepackage{ustcextra}
 \graphicspath{{figures/}}
 \bibliographystyle{ustcauthoryear}
 % \bibliographystyle{ustcnumerical}
 
-\title{中国科学技术大学\\毕业论文模板示例文档}
-\author{赵钱孙}
-\major{XXXX专业}
-\advisor{钱学森\ 教授}
-\submitdate{二〇九九年十三月}
+\title{一个基于OpenCL的对于数据立方体相关计算操作的算法模型及其优化方案}
+\author{邹凯}
+\major{计算机专业}
+\advisor{谢希科\ 教授}
+\submitdate{二〇一七年六月}
 %\secrettext{机密\quad 小于等于20年}   % 内部|秘密|机密，注释本行则不保密
-\depart{一二三系}
+\depart{中国科学技术大学\ 计算机科学与技术学院}
 
-\entitle{An Example of USTC Thesis Template for Bachelor, Master and Doctor}
-\enauthor{Qiansun Zhao}
-\enmajor{Whatever}
-\enadvisor{Prof. Xueshen Qian}
-\ensubmitdate{June, 2099}
+\entitle{An OpenCL approach and its optimization for data cube generation and calculation}
+\enauthor{Kai Zou}
+\enmajor{Computer Science}
+\enadvisor{Prof. Xike\ Xie}
+\ensubmitdate{June, 2017}
 %\ensecrettext{Confidential\quad Less than or equal to 20 years}  % Internal|Secret|Confidential
 
 \begin{document}
@@ -41,8 +41,9 @@
 %
 
 \frontmatter
-\input{chapters/abstract}
+\input{chapters/acknowledgements}
 \tableofcontents
+\input{chapters/abstract}
 \listoffigures
 \listoftables
 \listofalgorithms  % 算法索引，如不需要，可直接注释掉本行
@@ -50,20 +51,25 @@
 
 \mainmatter
 \input{chapters/intro}
-\input{chapters/figure}
-\input{chapters/table}
-\input{chapters/math}
-\input{chapters/algorithm}
-\input{chapters/code}
-\input{chapters/crossref}
-\input{chapters/citation}
+\input{chapters/background_motivation}
+\input{chapters/parallel_cube_generation}
+\input{chapters/optimization}
+\input{chapters/evaluation}
+\input{chapters/conclusion}
+
 \bibliography{bib/tex}
 
-\appendix
-\chapter{论文规范}
+% \appendix
+% \chapter{论文规范}
 
 \backmatter
-\input{chapters/acknowledgements}
-\input{chapters/publications}
+% \input{chapters/figure}
+% \input{chapters/table}
+% \input{chapters/math}
+% \input{chapters/algorithm}
+% \input{chapters/code}
+% \input{chapters/crossref}
+% \input{chapters/citation}
+% \input{chapters/publications}
 
 \end{document}

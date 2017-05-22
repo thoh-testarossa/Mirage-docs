@@ -1,0 +1,268 @@
+\chapter{并行化的数据聚合立方体生成}
+\citestyle{ustcnumerical}
+\section{一些数学量的符号化假定}
+
+本章在接下来的讨论中会涉及到一些计算，其中有一些时间，以及空间的量需要在此列出，以方便计算与讨论。这些量包括：
+
+在系统中并行执行的并行kernel数量：$K$
+
+数据具有$n$个维度属性，其中每个维度的取值数量由（$d_1$, $d_2$, …, $d_n$）决定
+
+在数据聚合立方体中一个cell的大小：$s$
+
+一个kernel负责生成的cell个数：$g$
+
+数据集的元素个数：$d$
+
+数据集中一个元素的大小：$sd$
+
+内存到设备（设备到内存）间拷贝数据集中一个元素所需要的时间：$t_{ele\_copy}$
+
+一个kernel处理一个数据集中的element（包括了扫描，计算，以及将其结果放置到设备内存中的某个位置）所需要的时间：$t_{scan}$
+
+内存到设备（设备到内存）间拷贝一个cell所需要的时间：$t_{copy}$
+
+将一个已经生成的cell聚合进另一个数据聚合立方中所需要的时间：$t_{agg}$
+
+数据集被划分成的部分数：$p$
+
+\section{内存模型}
+
+\subsection{并行编程模型与多线程模型的相异点}
+目前在并行编程模型中常使用的库中，大多拥有“kernel”这一概念，即并行算法执行的单元。所有的并行算法以kernel为基础，通过并行硬件对于多个kernel的同时计算从而达到并行计算的目的
+
+kernel比起通常的多线程模型，有如下的相异点：
+
+1、kernel属于元程序，即kernel的执行是不可分割的{\quad$\Rightarrow$\quad}这使得kernel在执行之中属于不可控状态：kernel直到执行完成为止都无法被中止
+
+2、现有的编程模型中，并没有kernel对于临界区数据的锁机制{\quad$\Rightarrow$\quad}从而使得kernel之间对同一内存区域的协同访问／修改变得困难
+
+3、在任意一个时刻，并行硬件上的一个计算单元中最多存在一个运行中的kernel{\quad$\Rightarrow$\quad}从而使得对于kernel的任务调度变得更为死板，需要事先完成
+
+4、然而也是由于以上原因，kernel比通常的多线程模型更加易于控制，于是现代并行编程模型中主流即采用kernel模型而非一般意义上的多线程模型，因为高性能硬件（例如GPU）通常来说都被设计成缺少足够的控制处理器从而提高计算处理器的数量，使得最大计算潜能得到提升
+
+
+\subsection{基于读写互不冲突原则的内存分配方案}
+由前所述，在以kernel为基础的并行模型中，对共享数据的内存管理是一件不容易的事情，特别当面对读写冲突（例如RAW）时会变得难以控制。因此，直观的一种解决思路（同时也是现在比较常用的解决思路）便是事先划分每一个kernel所使用的内存区域，这样就可以在不造成读写冲突的情况下最大化并行kernel之间的并行度
+
+在下文中，将提到三种不同的由源数据生成底层cuboid的方案。这三种方案采用的内存模型都基于上述的内存互不相关原则，并且将会在方案被具体展示时被具体提出
+
+\section{memory最优方案}
+首先，对于并行方案的设计，一个最直观的想法就是将计算kernel以cell作为划分的基准，即每个kernel负责计算某些需要生成的数据立方体中的cell，并且最后设法将所有kernel的计算结果统一到一起，即可得到一个完整的cuboid。
+
+在这种方式的前提下，我们的编程模型生成一系列kernel，注意这些kernel的数量并非一个系统中能够同时运行的kernel的数量（后文也将反复强调这个概念）。而后，这些kernel在计算时满足以下的几个特点：
+
+{\quad}·所有kernel共用一个shared memory数据聚合立方体，这个数据立方体在所有的kernel计算完内部的所有cell，并且将结果拷贝到该区域之后，即为所求的cuboid
+
+{\quad}·每个kernel仅操作被调度方式分配到的那些cells
+
+下面给出算法运行的步骤：
+
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{原始数据集}
+\KwResult{对原始数据集生成的cuboid}
+Generate computation kernel based on system dispatch scenario\;
+Copy the dataset into the parallel device\;
+\While{kernels to execute exists}{
+	Use this kernel to scan the whole dataset\;
+	Generate the corresponding cells using the result of scan\;
+	Copy the cells to corresponding part in shared memory\;
+}
+Copy the result cuboid back to the main memory for further use\;
+\caption{以cell为组织形式的并行生成cuboid算法}
+\label{algo:algorithm1}
+\end{algorithm}
+
+下面我们对这个算法的时空状况进行分析：
+
+第1行中，初始化一个并行计算的设备所需要花费的时间是一个与系统相关，并且与具体程序无关的常量$C_T$，当然所占用的空间也应该是一个常量$C_S$。因此，这一步花费的总时间为：
+
+\begin{equation}
+T_{initialize} = C_T
+\end{equation}
+
+到这一步为止系统出现过的最大总存储占用量为：
+
+\begin{equation}
+S_{initialize} = C_S
+\end{equation}
+
+第2行中，为了使得并行设备也能够使用dataset进行计算，同时为了使得并行计算设备，以及主存都有足够的空间容纳将要计算的cuboid，因此无论是dataset还是cuboid的空间都需要准备两份。因此，可以得到这一步花费的总时间为：
+
+\begin{equation}
+T_{copy\_in} = t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy}
+\end{equation}
+
+到这一步为止系统出现过的最大总存储占用量为：
+
+\begin{equation}
+S_{copy\_in} = C_S + (d \times sd + \prod_{i}^{n} d_i \times s) \times 2
+\end{equation}
+
+接下来的循环节部分，我们可以算出，在这种前提下系统一共会生成的计算kernel数为$\prod_{i}^{n} d_i \div g$，因此系统总共需要运行$\prod_{i}^{n} d_i \div (g \times K)$趟才能将这些内核处理完毕。而每一趟中，每个kernel都需要为了处理一整个数据集花费时间为$d \times t_{scan}$。另外观察发现，这一步并没有进行更多的内存分配。于是这个阶段花费的总时间为：
+
+\begin{equation}
+T_{cal} = d \times t_{scan} \times \prod_{i}^{n} d_i \div (g \times K)
+\end{equation}
+
+到这一步为止系统出现过的最大总存储占用量和上一步相同。
+
+最后的拷出部分，显然也没有任何更多的内存分配。所需要的时间为：
+
+\begin{equation}
+T_{copy\_out} = \prod_{i}^{n} d_i \times t_{copy}
+\end{equation}
+
+而整个算法的运行时间为：
+\begin{equation}
+T_{total\_c} = 
+T_{initialize} + T_{copy\_in} + T_{cal} + T_{copy\_out}
+\end{equation}
+
+因此，整个算法的运行时间为：
+\begin{equation}
+T_{total\_c} = C_T + 2 \times t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy} + d \times t_{scan} \times \prod_{i}^{n} d_i \div (g \times K)
+\end{equation}
+
+过程中最大的空间占用为：
+\begin{equation}
+S_{max_c} = C_S + (d \times sd + \prod_{i}^{n} d_i \times s) \times 2
+\end{equation}
+
+注意到此处的$T_{total\_c}$中，由于起码需要完成一趟kernel的运行，因此必定有$\prod_{i}^{n} d_i \geq g \times K$
+
+从这个结果我们可以看出来，该方案占用的内存仅为数据集所需要占用的空间与生成的cuboid所需要占用的空间之和，这是理论上的最小情况。因此我们可以做出结论，该方案是memory最优的。
+
+但是另一方面，由于每个kernel都需要完整地扫描一遍数据集，这样在累计上，该方案总共需要的扫描与计算量为$\prod_{i}^{n} d_i \div g$，当数据的统计维度较多，生成的cuboid比较大的时候，这将是一个非常庞大的数字，在时间上并不现实。因此，另外的方案需要被找到。
+
+\section{速度最优方案}
+通过上面的讨论，我们可以看到，如何有效地减少对于数据集的扫描次数，即是等同于有效地减少生成cuboid所需的总计算量。因此，为了减少用户所需的等待时间，我们必须需要一个合适的方案，使得在能够生成cuboid的同时尽可能少的扫描（处理）整个数据集。
+
+考察如下情形：当我们使用通常的编程手段时，我们仅需扫描整个数据集一次，然后对于每个扫描到的元素，我们将其信息加以处理后，放入在内存中某个分配给cuboid的内存空间中。当整个数据集扫描完毕后，我们就得到了我们想要的结果cuboid。考虑到绝大多数基本聚合函数，例如求和，求平均，计数，直方图累积等等，其实现并不依赖于数据集的内在构成。因此，我们自然可以将整个数据集按某种方式分成均等的若干份，然后每一份子数据集就由一个kernel来处理。
+
+在这个思路下，我们能得到一个最直观的做法。在这个做法中的kernel满足以下几个特点：
+
+{\quad}·所有kernel独自使用一个独立的shared memory区域（类同于local memory）
+
+{\quad}·每个kernel负责生成一个part的dataset的完整数据聚合立方体
+
+这样，当所有的kernel执行完之后，我们就能得到这样一些cuboid：它们是原dataset的不同子dataset的完整的cuboid。然后，我们将每个kernel生成的cuboid再聚合到一个cuboid中，就能得到一个属于原数据集的完整的cuboid。我们的算法就完成了。
+
+下面给出算法运行的具体步骤：
+
+\begin{algorithm}[htbp]
+\SetAlgoLined
+\KwData{原始数据集}
+\KwResult{对原始数据集生成的cuboid}
+Generate computation kernel based on system dispatch scenario\;
+Copy the dataset into the parallel device\;
+\While{kernels to execute exists}{
+	Use this kernel to scan the specific part of raw dataset\;
+	Generate the completed cuboid of this part using the result of scan\;
+	Remain the cuboid into its part of device memory\;
+}
+Copy all the sub cuboid back to the main memory as well as aggregate them into a whold cuboid for whole dataset\;
+\caption{以dataset part为组织形式的并行生成cuboid算法}
+\label{algo:algorithm2}
+\end{algorithm}
+
+因为在该方案中，数据被划分的块数，也就是kernel数变得可控了。因此我们不妨假定此时算法调度将生成kernel数为$k_0 \geq K$。类同上一个算法，下面我们也对这个算法的时空状况进行分析：
+
+第1行中，分析同前一个算法，亦有：
+
+\begin{equation}
+T_{initialize} = C_T
+\end{equation}
+
+\begin{equation}
+S_{initialize} = C_S
+\end{equation}
+
+第2行中，数据集作为并行设备运行算法时必须读取的部分，我们仍然要将其拷贝一份到设备上。不同的是，这一回每一个kernel都需要自己的一份完整的cuboid空间来存放其临时结果。因此能得到的该步骤所需要花费的时间为：
+
+\begin{equation}
+T_{copy\_in} = k_0 \times t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy}
+\end{equation}
+
+到这一步为止系统出现过的最大总存储占用量为：
+
+\begin{equation}
+S_{copy\_in} = C_S + d \times sd \times 2 + \prod_{i}^{n} d_i \times s \times (k_0 + 1)
+\end{equation}
+
+循环节部分，可以发现此时每个kernel需要扫描的dataset的一部分的大小均为$d \div k_0$，因此每个kernel的运行时间将为$d \div k_0 \times t_{scan}$。而$k_0$个kernel需要执行$\lceil k_0 \div K \rceil$批次，因此最后我们能够得到该步骤所需要花费的时间为：
+
+\begin{equation}
+T_{cal} = d \times t_{scan} \times \lceil k_0 \div K \rceil \div k_0
+\end{equation}
+
+同之前一样，这一步没有分配额外的空间
+
+拷出所有的子cuboid并且将其聚合成一个cuboid的部分，也并没有更多的空间分配。而花费的时间，则主要由两部分组成：将$k_0$个cuboid拷贝回主存，以及每拷贝出一个子cuboid，就将其合并到已经存在于主存之中的完整cuboid中去。因此这部分需要花费的时间为：
+
+\begin{equation}
+T_{copy\_out} = \prod_{i}^{n} d_i \times t_{copy} \times k_0
+\end{equation}
+
+\begin{equation}
+T_{agg} = \prod_{i}^{n} d_i \times t_{agg} \times k_0
+\end{equation}
+
+而整个算法的运行时间为：
+\begin{equation}
+T_{total\_d} = 
+T_{initialize} + T_{copy\_in} + T_{cal} + T_{copy\_out} + T_{agg}
+\end{equation}
+
+因此，整个算法的运行时间为：
+\begin{equation}
+T_{total\_d} = C_T + 2 \times k_0 \times t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy} + d \times t_{scan} \times \lceil k_0 \div K \rceil \div k_0 + \prod_{i}^{n} d_i \times t_{agg} \times k_0
+\end{equation}
+
+而过程中的最大总空间占用量为：
+
+\begin{equation}
+S_{max\_d} = C_S + d \times sd \times 2 + \prod_{i}^{n} d_i \times s \times (k_0 + 1)
+\end{equation}
+
+接下来首先考察$k_0$的取值。显然在几乎所有的等式中，$k_0$均作为乘积项出现，因此在这些项中，显然是$k_0$具备越小的值越佳。在$T_{cal}$项中，当$k_0$为$K$的整数倍时，该式取得最小值。结合上述两个条件，我们可以令$k_0 = K$，此时我们就能取得最优解。表达式可以改写为以下形式：
+\begin{equation}
+T_{total\_d} = C_T + 2 \times K \times t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy} + d \times t_{scan} \div K + \prod_{i}^{n} d_i \times t_{agg} \times K
+\end{equation}
+
+\begin{equation}
+S_{max\_d} = C_S + d \times sd \times 2 + \prod_{i}^{n} d_i \times s \times (K + 1)
+\end{equation}
+
+在这个前提下，数据集的总扫描／计算复杂度与仅扫描一遍数据集相当，因此在这部分上可以说是速度最优（时间最优）方案。另外，由于对数据的聚合本身就是一种将大量数据变成少量具有概括性的数据的过程，因此拷出时间，以及子cuboid之间聚合的时间对于数据集扫描与计算的过程本身应当是微不足道的。于是结合这个前提，该方案在全局上也基本是速度最优的。
+
+但是另一方面，我们能够看到，每一个kernel都需要自己的一块cuboid空间以无冲突地计算并生成自己负责的子cuboid，当并行数很高，又或者是cuboid的cell数量很多的情况下，现阶段的并行设备存储很难具有足够的空间支持这样的分配。因此，势必要有这么一种方案，通过牺牲一定的性能来使得算法能够执行下去。
+
+\section{混合方案}
+
+基于上述两个小节的讨论，我们发现，如果系统资源足够的话，我们可以直接采用速度最优方案来实现我们的cuboid计算。但是有些情况下，系统未必能够满足这样的需求。因此，在速度最优方案的基础上，我们需要加入一些从memory最优方案中吸取的思想，在使得算法能够正常运行的前提下能够尽量不牺牲太多的性能。因此，需要考虑混合方案，即kernel的处理单元同时以kernel和part of dataset来进行划分。
+
+该方案主要具有如下的特点：
+
+{\quad}·一个kernel处理对应dataset part的某些cells的生成。这些计算完的cell会被放入下述的内存分配空间中的对应位置。
+
+{\quad}·由于并行计算模型中很难控制具体哪些kernel的先后执行顺序，但是大致可以确定一个总体的执行顺序，即位于相近part的kernel总是倾向于在一起被执行，所以内存分配采用如下方式：分配$\lceil K \times g \div \prod_{i}^{n} d_i \rceil + 1$个cuboid的共享空间。这样基于kernel的运行规律，再根据抽屉原理就可以计算出，在新的part的kernel开始计算的时候，这个共享空间中一定有至少一个cuboid的空间，位于这个空间的老cuboid是已经计算完成并且可以拷出的。即，此时我们能保证各个kernel之间读写的独立性。
+
+{\quad}·从最终的运行结果上看，总共需要经历$p$次全data cube上的aggregation，以及$p$次全data cube的拷贝（入与出）。
+
+结合上述三点，我们就可以得出一个最终的时间表达式：
+\begin{equation}
+T_{total\_m} = C_T + 2 \times p \times t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy} + d \times t_{scan} \times \prod_{i}^{n} d_i \div (g \times K) + \prod_{i}^{n} d_i \times t_{agg} \times p
+\end{equation}
+
+以及最大空间表达式：
+\begin{equation}
+S_{max\_m} = C_S + d \times sd \times 2 + \prod_{i}^{n} d_i \times (\lceil K \times g \div \prod_{i}^{n} d_i \rceil + 1) \times s
+\end{equation}
+
+此时可以发现，memory最优方案即为$\prod_{i}^{n} d_i \geq g \times K$且$p = 1$的该方案的特殊情形；速度最优方案则为$p = K$且$g = \prod_{i}^{n} d_i$的情形。因此也证明了这个混合方案的正确性。
+
+根据混合方案的表达式，通过适当控制$g$与$p$两个参数在适合的值，即可在速度最优的方案的基础上，通过牺牲部分性能来减少内存空间占用，从而使得算法能够照常运行下去。
+
+另外，在此方案中，并不能保证某n批次的kernel处理完毕时正好落在某个part的边界，因此需要额外的内存空间来作为其他的partition data cube的空间以保证聚合的正确。因此在空间表达式上，混合方案和memory最优方案以及速度最优方案给出的表达式有一些微小的偏差。
