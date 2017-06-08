@@ -19,6 +19,9 @@ T_{c\_agg\_to\_c} = t_{cs} \times \sum_{m = 0}^{j - 1} (\prod_{i = 1}^{n} d_i / 
 该算法思路非常简单：我们总选择当前剩下来需要被聚合的维度中维度值最大的那一维即可。下面将给出其最优性的简单证明。
 
 \subsection{算法的证明}
+
+\begin{proof}
+
 现在来考察一个聚合过程中的某两步，这两步分别选择聚合第$i$维和第$j$维。
 
 考察这两步聚合发生前的聚合cuboid与之后的聚合cuboid：与这两步聚合的具体顺序无关，结果来看都为后者比前者多聚合了$i$，$j$两个维度。因此，无论这两步按照如何的顺序发生，对于这两步之前的扫描次数总和，与这两步之后的扫描次数总和都是无关系的。
@@ -36,10 +39,12 @@ T_{c\_agg\_to\_c} = t_{cs} \times \sum_{m = 0}^{j - 1} (\prod_{i = 1}^{n} d_i / 
 
 证毕。
 
-\section{从给定的预处理cuboid中的最优起始选择}
-事实上，对于一个系统而言，存在忙时就势必会存在闲时，意即存在这样一些时刻，系统计算资源得到空闲。而由上一小节的分析可知，从源cuboid到目标cuboid是需要计算的，这个计算量与聚合操作的次数，路径上的中间cuboid都有关。
+\end{proof}
 
-作为上一小节中提到的算法的前提条件，“源cuboid”与“目标cuboid”是明确的，即从源cuboid到目标cuboid的聚合次数是一定的，而上一小节中的算法在这个前提下给出了最小代价的聚合方案。然而在实际操作中，用户只需求目标cuboid，意即其并不关心这个目标cuboid是从哪个地方来的（可能是直接从源数据生成，也可能是由其他一些已经生成好的cuboid生成）。于是，一个直观的想法就是我们或许可以不需要每次都从最底层的cuboid来现场计算出目标cuboid，而是从某些预先计算好的cuboid来计算目标cuboid，从而减少聚合次数，进而减少总的计算代价。这些预处理的cuboid可以在系统空闲时间被计算出来，从而不占用任何的实际运行时间。
+\section{从给定的预处理cuboid中的最优起始选择}
+事实上，对于一个系统而言，存在着大量的闲时，意即存在这样一些时刻，由于没有相应的计算任务，系统计算资源得到空闲。而由上一小节的分析可知，从源cuboid到目标cuboid是需要计算的，这个计算量与聚合操作的次数，路径上的中间cuboid都有关。
+
+作为上一小节中提到的算法的前提条件，“源cuboid”与“目标cuboid”是明确的，即从源cuboid到目标cuboid的聚合次数是一定的，而上一小节中的算法在这个前提下给出了最小代价的聚合方案。然而在实际操作中，用户只需求目标cuboid，意即其并不关心这个目标cuboid是从哪个地方来的（可能是直接从源数据生成，也可能是由其他一些已经生成好的cuboid生成）。于是，一个直观的想法就是我们或许可以不需要每次都从最底层的cuboid来现场计算出目标cuboid，而是从某些预先计算好的cuboid来计算目标cuboid，从而减少聚合次数，进而减少总的计算代价。同时，因为此时需要读写的cuboid较之底层cuboid，或者是原数据集，将小得多，这样也使得与之相关的读写开销有了明显的改善，从而在总的处理时间上更占优势。这些预处理的cuboid可以在系统空闲时间被计算出来，从而不占用任何的实际运行时间。
 
 \subsection{选择标准}
 如前所述，假定我们现在已经有了一个预处理过后的cuboid集合。可知这个集合中势必包含一个最底层的cuboid：
@@ -93,7 +98,7 @@ $B(v, S)$ = $\sum B_w$
 \end{definition}
 由此我们可以看出，收益函数的定义实质是“选择当前cuboid比起选择由它而生成的所有cuboid相比能多得到的收益”。
 
-基于这个收益函数，有一个对于所需生成的cuboid进行选择的贪心算法如下：
+基于这个收益函数，为了找到一个全局最优的方案，我们当然可以通过枚举所有的k个cuboid，在其中找到一个最优的方案。但是这种做法是NP-hard的。为了解决这个问题，我们退而求其次，求一个次优的方案。此时有一个对于所需生成的cuboid进行选择的贪心算法如下：
 \begin{algorithm}[htbp]
 \SetAlgoLined
 \KwData{Nothing}
@@ -150,13 +155,15 @@ T_{cal} = t_{scan\_per\_cell} \div K \times \sum_{m = 0}^{q - 1} ((D \times \pro
 T_{copy\_d\_to\_m} = C_{copy\_d\_to\_m} \times \sum_{m = 1}^{q} (D \times \prod_{i = 1}^{q} d_i \div (\prod_{l = 1}^{m} d_{i_l}))
 \end{equation}
 
-那么这个$C(v)$函数究竟应该如何构造呢？我们不妨这么考虑：假定现在有两个cuboid，分别为$a$与$b$，其中$a$可以生成$b$（意即$a$经由聚合能达到$b$）。我们现在暂且不知道$C(a)$与$C(b)$如何取值，但有一点可以明确的是，选择$C(b)$和选择$C(a)$，在以后生成所有可以由b生成的cuboid时，可以有差值：$C(a)$ – $C(b)$ = $\Delta read_time(a, b) + generate_time(a -> b)$。于是，顺着这个思路，定义最底层cuboid的$C(bottom)$为$0$，则有：
+那么这个$C(v)$函数究竟应该如何构造呢？我们不妨这么考虑：假定现在有两个cuboid，分别为$a$与$b$，其中$a$可以生成$b$（意即$a$经由聚合能达到$b$）。我们现在暂且不知道$C(a)$与$C(b)$如何取值，但有一点可以明确的是，选择$C(b)$和选择$C(a)$，在以后生成所有可以由b生成的cuboid时，可以有差值：$C(a)$ – $C(b)$ = $\Delta read\_time(a, b) + generate\_time(a -> b)$。于是，顺着这个思路，定义最底层cuboid的$C(bottom)$为$0$，则有：
 
 \begin{definition}
-$C(bottom) - C(v) = - C(v) = C_{copy\_hd\_to\_m} \times sizeof(source cuboid file - target cuboid file) + C_{copy\_m\_to\_d} \times count_A \times s + C_{copy\_d\_to\_m} \times count_B \times s + t_{scan\_per\_cell} \div K \times count_A + C_{init\_time}$
+$C(bottom) - C(v) = - C(v) = C_{copy\_hd\_to\_m} \times sizeof(source\ cuboid\ file - target\ cuboid\ file) + C_{copy\_m\_to\_d} \times count_A \times s + C_{copy\_d\_to\_m} \times count_B \times s + t_{scan\_per\_cell} \div K \times count_A + C_{init\_time}$
 \end{definition}
 
-即C(v)是上述式子的相反数。
+即$C(v)$是上述式子的相反数。
+
+我们可以发现，由于我们的定义中，$C(v)$指的是“相对于最底层cuboid的花费的差值”，因此如果选择对应的cuboid比选择底层的cuboid要更优，则该值应该是负的。
 
 在这个式子中，$count_A$与$count_B$分别代表在具体的计算中，相应的部分需要处理的cell的个数。
 
@@ -182,11 +189,15 @@ $- C(v) = C_{copy\_m\_to\_d} \times count_A \times s + C_{copy\_d\_to\_m} \times
 
 进行如下的假定：对于当前cuboid，未聚合维度的维度值集合为$(d_1, d_2, …, d_j)$。假定我们需要聚合维度$i$，考察聚合后的cuboid，我们可以发现，所有满足如下条件的聚合前的cuboid的cell将会被聚合成聚合后cuboid的一个cell：
 
-$(ddk_1, ddk_2, …, ddk_{i-1}, d_i, ddk_{i+1}, …, ddk_j)$，其中$ddk_m$（$m$从1到$j$，$m$代表维度）是明确的值，$d_i$是一个变量。它们将会被聚合到聚合后的cuboid中的
+$(ddk_1, ddk_2, …, ddk_{i-1}, d_i, ddk_{i+1}, …, ddk_j)$，其中$ddk_m$（$m$从1到$j$，$m$代表维度）是明确的值，$d_i$
 
 $(ddk_1, ddk_2, …, ddk_{i-1}, ddk_{i+1}, …, ddk_j)$
 
-这个cell中。因此，我们可以令每个kernel生成一个聚合后的cell。注意到所有的kernel合起来将完成一次对于聚合前cuboid的扫描，因此计算代价上是最优的，无需像第3章中一般特地使用多个cuboid的存储空间，而仅需要一个共享的cuboid空间即可。同时这个定义可以直接避免读写冲突，因此这是一个可行的方法。
+这个cell中。
+
+举个例子来说，假如是$5$维的，我们要聚合第$4$维，并且将其聚合到则聚合前的cell的$(3, 7, 2, 6)$这个cell之中，则聚合之前的cell一定有属性值为$(3, 7, 2, d_i, 6)$。
+
+因此，我们可以令每个kernel生成一个聚合后的cell。注意到所有的kernel合起来将完成一次对于聚合前cuboid的扫描，因此计算代价上是最优的，无需像第3章中一般特地使用多个cuboid的存储空间，而仅需要一个共享的cuboid空间即可。同时这个定义可以直接避免读写冲突，因此这是一个可行的方法。
 
 下面给出该算法的具体过程：
 \begin{algorithm}[htbp]

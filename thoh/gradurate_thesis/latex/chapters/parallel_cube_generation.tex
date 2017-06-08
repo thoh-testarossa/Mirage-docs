@@ -1,6 +1,6 @@
 \chapter{并行化的数据聚合立方体生成}
 \citestyle{ustcnumerical}
-\section{一些数学量的符号化假定}
+\section{一些数学量的符号化设定}
 
 本章在接下来的讨论中会涉及到一些计算，其中有一些时间，以及空间的量需要在此列出，以方便计算与讨论。这些量包括：
 
@@ -37,15 +37,14 @@ kernel比起通常的多线程模型，有如下的相异点：
 
 2、现有的编程模型中，并没有kernel对于临界区数据的锁机制{\quad$\Rightarrow$\quad}从而使得kernel之间对同一内存区域的协同访问／修改变得困难
 
-3、在任意一个时刻，并行硬件上的一个计算单元中最多存在一个运行中的kernel{\quad$\Rightarrow$\quad}从而使得对于kernel的任务调度变得更为死板，需要事先完成
+3、在任意一个时刻，并行硬件上的一个计算单元中最多存在一个运行中的kernel{\quad$\Rightarrow$\quad}从而使得对于kernel的任务调度变得更为死板，一旦完成kernel的分配，则在运行的过程之中无法再次通过调度来重新均衡负载。
 
-4、然而也是由于以上原因，kernel比通常的多线程模型更加易于控制，于是现代并行编程模型中主流即采用kernel模型而非一般意义上的多线程模型，因为高性能硬件（例如GPU）通常来说都被设计成缺少足够的控制处理器从而提高计算处理器的数量，使得最大计算潜能得到提升
-
+4、然而实际上，由于牺牲了控制相关方面的电路模块，使得并行设备在计算单元的量的容纳上得到了巨大的提升：即通过牺牲控制相关方面的许多性能，使得并行设备在能够同时执行的任务的数量上有了极大的提升。每个计算单元都有能力独自处理一个计算kernel，而无需关心其余kernel的运行情况（事实上也很难关心）。于是，在kernel的执行过程中，许多无谓的通信成本，以及同步成本就可以被省去。基于这个特点，如果用户所需要完成的任务是计算密集型而非控制密集型的，那么并行计算模型将是一个很好的选择。
 
 \subsection{基于读写互不冲突原则的内存分配方案}
-由前所述，在以kernel为基础的并行模型中，对共享数据的内存管理是一件不容易的事情，特别当面对读写冲突（例如RAW）时会变得难以控制。因此，直观的一种解决思路（同时也是现在比较常用的解决思路）便是事先划分每一个kernel所使用的内存区域，这样就可以在不造成读写冲突的情况下最大化并行kernel之间的并行度
+由前所述，在以kernel为基础的并行模型中，对共享数据的内存管理是一件不容易的事情，特别当面对读写冲突（例如RAW）时会变得难以控制。因此，直观的一种解决思路（同时也是现在比较常用的解决思路）便是事先划分每一个kernel所使用的内存区域，这样就可以在不造成读写冲突的情况下最大化并行kernel之间的并行度。
 
-在下文中，将提到三种不同的由源数据生成底层cuboid的方案。这三种方案采用的内存模型都基于上述的内存互不相关原则，并且将会在方案被具体展示时被具体提出
+在下文中，将提到三种不同的由源数据生成底层cuboid的方案。这三种方案采用的内存模型都基于上述的读写互不冲突原则，并且将会在方案被具体展示时被具体提出。
 
 \section{memory最优方案}
 首先，对于并行方案的设计，一个最直观的想法就是将计算kernel以cell作为划分的基准，即每个kernel负责计算某些需要生成的数据立方体中的cell，并且最后设法将所有kernel的计算结果统一到一起，即可得到一个完整的cuboid。
@@ -100,7 +99,7 @@ T_{copy\_in} = t_{copy} \times \prod_{i}^{n} d_i + d \times t_{ele\_copy}
 S_{copy\_in} = C_S + (d \times sd + \prod_{i}^{n} d_i \times s) \times 2
 \end{equation}
 
-接下来的循环节部分，我们可以算出，在这种前提下系统一共会生成的计算kernel数为$\prod_{i}^{n} d_i \div g$，因此系统总共需要运行$\prod_{i}^{n} d_i \div (g \times K)$趟才能将这些内核处理完毕。而每一趟中，每个kernel都需要为了处理一整个数据集花费时间为$d \times t_{scan}$。另外观察发现，这一步并没有进行更多的内存分配。于是这个阶段花费的总时间为：
+接下来的循环节部分，我们可以算出，在这种前提下系统一共会生成的计算kernel数为$\prod_{i}^{n} d_i \div g$，而如同前面的假设，系统在同一时间（同一趟）最多能运行$K$个kernel。因此系统总共需要运行$\prod_{i}^{n} d_i \div (g \times K)$趟才能将这些内核处理完毕。而每一趟中，每个kernel都需要为了处理一整个数据集花费时间为$d \times t_{scan}$。另外观察发现，这一步并没有进行更多的内存分配。于是这个阶段花费的总时间为：
 
 \begin{equation}
 T_{cal} = d \times t_{scan} \times \prod_{i}^{n} d_i \div (g \times K)
@@ -134,12 +133,12 @@ S_{max_c} = C_S + (d \times sd + \prod_{i}^{n} d_i \times s) \times 2
 
 从这个结果我们可以看出来，该方案占用的内存仅为数据集所需要占用的空间与生成的cuboid所需要占用的空间之和，这是理论上的最小情况。因此我们可以做出结论，该方案是memory最优的。
 
-但是另一方面，由于每个kernel都需要完整地扫描一遍数据集，这样在累计上，该方案总共需要的扫描与计算量为$\prod_{i}^{n} d_i \div g$，当数据的统计维度较多，生成的cuboid比较大的时候，这将是一个非常庞大的数字，在时间上并不现实。因此，另外的方案需要被找到。
+但是另一方面，由于每个kernel都需要完整地扫描一遍数据集，这样在累计上，该方案总共需要的扫描与计算量为$\prod_{i}^{n} d_i \div g$，当数据的统计维度较多，生成的cuboid比较大的时候，这将是一个非常庞大的数字，在时间上并不现实。因此，我们需要寻找另外的方案。
 
 \section{速度最优方案}
 通过上面的讨论，我们可以看到，如何有效地减少对于数据集的扫描次数，即是等同于有效地减少生成cuboid所需的总计算量。因此，为了减少用户所需的等待时间，我们必须需要一个合适的方案，使得在能够生成cuboid的同时尽可能少的扫描（处理）整个数据集。
 
-考察如下情形：当我们使用通常的编程手段时，我们仅需扫描整个数据集一次，然后对于每个扫描到的元素，我们将其信息加以处理后，放入在内存中某个分配给cuboid的内存空间中。当整个数据集扫描完毕后，我们就得到了我们想要的结果cuboid。考虑到绝大多数基本聚合函数，例如求和，求平均，计数，直方图累积等等，其实现并不依赖于数据集的内在构成。因此，我们自然可以将整个数据集按某种方式分成均等的若干份，然后每一份子数据集就由一个kernel来处理。
+考察如下情形：当我们不使用并行编程手段时，我们仅需扫描整个数据集一次，然后对于每个扫描到的元素，我们将其信息加以处理后，放入在内存中某个分配给cuboid的内存空间中。当整个数据集扫描完毕后，我们就得到了我们想要的结果cuboid。考虑到绝大多数基本聚合函数，例如求和，求平均，计数，直方图累积等等，其实现并不依赖于数据集的内在构成。因此，我们自然可以将整个数据集按某种方式分成均等的若干份，然后每一份子数据集就由一个kernel来处理。
 
 在这个思路下，我们能得到一个最直观的做法。在这个做法中的kernel满足以下几个特点：
 
@@ -157,12 +156,12 @@ S_{max_c} = C_S + (d \times sd + \prod_{i}^{n} d_i \times s) \times 2
 \KwResult{对原始数据集生成的cuboid}
 Generate computation kernel based on system dispatch scenario\;
 Copy the dataset into the parallel device\;
-\While{kernels to execute exists}{
+\While{kernels to execute exist}{
 	Use this kernel to scan the specific part of raw dataset\;
 	Generate the completed cuboid of this part using the result of scan\;
 	Remain the cuboid into its part of device memory\;
 }
-Copy all the sub cuboid back to the main memory as well as aggregate them into a whold cuboid for whole dataset\;
+Copy all the sub-cuboids back to the main memory as well as aggregate them into whole cuboid\;
 \caption{以dataset part为组织形式的并行生成cuboid算法}
 \label{algo:algorithm2}
 \end{algorithm}
